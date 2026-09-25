@@ -1,0 +1,60 @@
+name: lol
+description: "A new lolplus project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  webview_flutter: ^4.4.0
+  shared_preferences: ^2.5.5
+  http: ^1.1.0
+  url_launcher: ^6.3.2
+  cached_network_image: ^3.3.0
+  video_player: ^2.5.1
+  html: ^0.15.4
+  wakelock_plus: ^1.2.8
+  encrypt: ^5.0.3
+  dio: ^5.4.0
+  path_provider: ^2.1.2
+  open_filex: ^4.4.0
+  qr_flutter: ^4.1.0
+  dart_cast: ^0.7.4
+  uuid: ^4.4.0
+  crypto: ^3.0.3
+  supabase_flutter: ^2.8.0
+  timezone: ^0.9.4
+  webview_windows: 0.2.2
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_windows_video: ^1.0.11
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  window_manager: ^0.3.9
+  
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/logo.png
+    - assets/spiner.gif
+    - assets/images/
+    - assets/redes/
+    - assets/images/proveedores/
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/logo.png"
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/logo.png"
+  min_sdk_android: 21
