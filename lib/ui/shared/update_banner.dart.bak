@@ -1,0 +1,278 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../data/services/version_service.dart';
+
+/// Envuelve toda la app: si hay actualización, muestra una barra superior
+/// con info + descargar/instalar.
+class UpdateGate extends StatefulWidget {
+  final Widget child;
+  const UpdateGate({super.key, required this.child});
+
+  @override
+  State<UpdateGate> createState() => _UpdateGateState();
+}
+
+class _UpdateGateState extends State<UpdateGate> {
+  UpdateStatus? _status;
+  bool _dismissed = false;
+  bool _busy = false;
+  double _progress = 0;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+  }
+
+  Future<void> _check() async {
+    final s = await VersionService.instance.checkForUpdate();
+    if (!mounted) return;
+    setState(() => _status = s);
+  }
+
+  Future<void> _showNovedades() async {
+    final info = _status?.latestVersion;
+    if (info == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1F2A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            'Novedades · v${info.version}',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Parche: ${info.parche}',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                if (info.novedades.isEmpty)
+                  const Text('Sin notas de esta versión.', style: TextStyle(color: Colors.white70))
+                else
+                  ...info.novedades.map(
+                    (n) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('•  ', style: TextStyle(color: Color(0xFFE50914))),
+                          Expanded(
+                            child: Text(n, style: const TextStyle(color: Colors.white70, height: 1.35)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cerrar', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadAndInstall() async {
+    final info = _status?.latestVersion;
+    if (info == null || _busy) return;
+
+    final url = VersionService.instance.resolveApkUrl(info);
+    if (url == null || url.isEmpty) {
+      setState(() => _error = 'No hay URL de APK disponible');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _progress = 0;
+      _error = null;
+    });
+
+    try {
+      final file = await VersionService.instance.downloadApk(
+        url,
+        onProgress: (p) {
+          if (mounted) setState(() => _progress = p);
+        },
+      );
+      if (!mounted) return;
+      if (file == null) {
+        setState(() {
+          _busy = false;
+          _error = 'Error al descargar el APK';
+        });
+        return;
+      }
+
+      final ok = await VersionService.instance.installApkFile(file.path);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        if (!ok) _error = 'No se pudo iniciar la instalación';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'Error: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final show = !_dismissed &&
+        _status != null &&
+        _status!.requiresUpdate &&
+        _status!.latestVersion != null;
+
+    return Column(
+      children: [
+        if (show) _UpdateBar(
+          status: _status!,
+          busy: _busy,
+          progress: _progress,
+          error: _error,
+          onInfo: _showNovedades,
+          onInstall: _downloadAndInstall,
+          onDismiss: () => setState(() => _dismissed = true),
+        ),
+        Expanded(child: widget.child),
+      ],
+    );
+  }
+}
+
+class _UpdateBar extends StatelessWidget {
+  final UpdateStatus status;
+  final bool busy;
+  final double progress;
+  final String? error;
+  final VoidCallback onInfo;
+  final VoidCallback onInstall;
+  final VoidCallback onDismiss;
+
+  const _UpdateBar({
+    required this.status,
+    required this.busy,
+    required this.progress,
+    required this.error,
+    required this.onInfo,
+    required this.onInstall,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final info = status.latestVersion!;
+    final top = MediaQuery.paddingOf(context).top;
+
+    return Material(
+      color: const Color(0xFF0D47A1),
+      elevation: 6,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Padding(
+          padding: EdgeInsets.only(top: top),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.system_update_rounded, color: Colors.white, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Nueva versión ${info.version}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                          Text(
+                            busy
+                                ? 'Descargando… ${(progress * 100).toStringAsFixed(0)}%'
+                                : (error ?? 'Parche ${info.parche} · toca Instalar'),
+                            style: TextStyle(
+                              color: error != null
+                                  ? const Color(0xFFFFCDD2)
+                                  : Colors.white.withValues(alpha: 0.8),
+                              fontSize: 11.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Novedades',
+                      onPressed: onInfo,
+                      icon: const Icon(Icons.info_outline_rounded, color: Colors.white, size: 22),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    const SizedBox(width: 2),
+                    FilledButton(
+                      onPressed: busy ? null : onInstall,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF0D47A1),
+                        disabledBackgroundColor: Colors.white24,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        minimumSize: const Size(0, 34),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                      child: busy
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                value: progress > 0 && progress < 1 ? progress : null,
+                                color: const Color(0xFF0D47A1),
+                              ),
+                            )
+                          : const Text('Instalar'),
+                    ),
+                    IconButton(
+                      tooltip: 'Cerrar',
+                      onPressed: busy ? null : onDismiss,
+                      icon: Icon(Icons.close, color: Colors.white.withValues(alpha: 0.85), size: 20),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+              if (busy)
+                LinearProgressIndicator(
+                  value: progress > 0 && progress < 1 ? progress : null,
+                  minHeight: 3,
+                  backgroundColor: Colors.white12,
+                  color: Colors.white,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

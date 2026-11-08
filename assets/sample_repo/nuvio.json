@@ -1,0 +1,27 @@
+{
+  "id": "demo-movies",
+  "name": "Demo Movies",
+  "version": "1.0.0",
+  "description": "Repositorio de ejemplo. Copia esta plantilla a tu repo de GitHub.",
+  "author": "Nuvio Community",
+  "icon": "icon.png",
+  "entry": "index.js",
+  "capabilities": ["home", "discover", "search", "meta", "streams"],
+  "config": [
+    {
+      "key": "api_key",
+      "label": "API Key (opcional)",
+      "type": "password",
+      "default": "",
+      "description": "Si tu fuente necesita una API key, el usuario la introduce aquí y se guarda en caché de la app.",
+      "required": false
+    },
+    {
+      "key": "language",
+      "label": "Idioma preferido",
+      "type": "text",
+      "default": "es",
+      "description": "Código de idioma (es, en, pt...)"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+name: nuvio_launcher
+description: Launcher de repositorios GitHub (estilo Nuvio).
+publish_to: 'none'
+version: 0.1.2+12
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+  cached_network_image: ^3.4.1
+  flutter_js: ^0.8.1
+  uuid: ^4.5.0
+  provider: ^6.1.2
+  go_router: ^14.2.7
+  equatable: ^2.0.5
+  intl: ^0.19.0
+  collection: ^1.18.0
+  url_launcher: ^6.3.0
+  multicast_dns: ^0.3.2+7
+  dart_cast: ^0.7.4
+  video_player: ^2.9.2
+  wakelock_plus: ^1.2.8
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+  apk_sideload: ^0.0.2
+  window_manager: ^0.4.3
+  tray_manager: ^0.2.3
+  supabase_flutter: ^2.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/js/
+    - assets/js/crypto-js.min.js
+    - assets/js/crypto-js.bundle.js
+    - assets/js/cheerio.bundle.js
+    - assets/images/
+    - assets/sample_repo/
+    - assets/tray_icon.ico
+    - assets/app_icon.ico
+    - assets/spiner.gif
