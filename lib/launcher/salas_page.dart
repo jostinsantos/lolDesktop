@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
+import 'dart:ui';
 import '../data/services/party_service.dart';
 import '../data/services/repo_manager.dart';
 import '../repo/player/party_player.dart';
 
-const _bg = Color(0xFF0B0D10);
-const _card = Color(0xFF161A22);
-const _border = Color(0xFF1E2430);
+const _bg = Color(0xFF0A0C0F);
+const _card = Color(0xFF141820);
+const _border = Color(0xFF1C222C);
 const _accent = Color(0xFFE50914);
-const _textMuted = Color(0x99FFFFFF);
+const _textMuted = Color(0x8AFFFFFF);
 
 class SalasPage extends StatefulWidget {
   const SalasPage({super.key});
@@ -28,7 +29,7 @@ class _SalasPageState extends State<SalasPage> {
   bool _loading = true;
   String? _error;
   bool _editingUsername = false;
-  String _filterType = 'all'; // all | movie | series
+  String _filterType = 'all';
 
   @override
   void initState() {
@@ -188,33 +189,33 @@ class _SalasPageState extends State<SalasPage> {
             : 2;
 
     return Container(
-      color: _bg,
+      color: Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Username
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 6),
             child: Row(
               children: [
-                const Icon(Icons.person_rounded, color: _textMuted, size: 20),
+                const Icon(Icons.person_rounded, color: _textMuted, size: 18),
                 const SizedBox(width: 10),
                 if (!_editingUsername && hasUsername)
                   Expanded(
                     child: Text(
                       'Tu nombre: ${party.username}',
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 14),
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 13.5),
                     ),
                   )
                 else
                   Expanded(
                     child: TextField(
                       controller: _usernameCtrl,
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'Elige un nombre de usuario',
-                        hintStyle: const TextStyle(color: _textMuted),
+                        hintStyle: const TextStyle(color: _textMuted, fontSize: 13),
                         isDense: true,
                         filled: true,
                         fillColor: _card,
@@ -226,6 +227,8 @@ class _SalasPageState extends State<SalasPage> {
                           borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(color: _border),
                         ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
                       ),
                       maxLength: 24,
                       inputFormatters: [
@@ -238,11 +241,18 @@ class _SalasPageState extends State<SalasPage> {
                 const SizedBox(width: 8),
                 if (_editingUsername || !hasUsername)
                   FilledButton(
-                      onPressed: _saveUsername, child: const Text('Guardar'))
+                      onPressed: _saveUsername,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _accent,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                      ),
+                      child: const Text('Guardar'))
                 else
                   TextButton(
                     onPressed: () => setState(() => _editingUsername = true),
-                    child: const Text('Cambiar'),
+                    child: const Text('Cambiar',
+                        style: TextStyle(color: Colors.white60)),
                   ),
               ],
             ),
@@ -250,7 +260,7 @@ class _SalasPageState extends State<SalasPage> {
 
           // Join by code
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
             child: Row(
               children: [
                 Expanded(
@@ -260,7 +270,7 @@ class _SalasPageState extends State<SalasPage> {
                       color: Colors.white,
                       letterSpacing: 3,
                       fontWeight: FontWeight.w700,
-                      fontSize: 18,
+                      fontSize: 16,
                     ),
                     textCapitalization: TextCapitalization.characters,
                     decoration: InputDecoration(
@@ -269,10 +279,10 @@ class _SalasPageState extends State<SalasPage> {
                         color: _textMuted,
                         letterSpacing: 0,
                         fontWeight: FontWeight.normal,
-                        fontSize: 14,
+                        fontSize: 13.5,
                       ),
-                      prefixIcon:
-                          const Icon(Icons.vpn_key_rounded, color: _textMuted),
+                      prefixIcon: const Icon(Icons.vpn_key_rounded,
+                          color: _textMuted, size: 20),
                       filled: true,
                       fillColor: _card,
                       border: OutlineInputBorder(
@@ -283,18 +293,23 @@ class _SalasPageState extends State<SalasPage> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: _border),
                       ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 14),
                     ),
                     onSubmitted: (_) => _joinByCode(),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 FilledButton.icon(
                   onPressed: _joinByCode,
-                  icon: const Icon(Icons.login_rounded),
+                  icon: const Icon(Icons.login_rounded, size: 18),
                   label: const Text('Unirse'),
                   style: FilledButton.styleFrom(
+                    backgroundColor: _accent,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 16),
+                        horizontal: 18, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(11)),
                   ),
                 ),
               ],
@@ -303,19 +318,19 @@ class _SalasPageState extends State<SalasPage> {
 
           // Search + filters
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+            padding: const EdgeInsets.fromLTRB(24, 6, 24, 4),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _searchCtrl,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(color: Colors.white, fontSize: 13.5),
                     decoration: InputDecoration(
                       hintText: 'Buscar por título, host o código…',
                       hintStyle:
-                          const TextStyle(color: _textMuted, fontSize: 13),
+                          const TextStyle(color: _textMuted, fontSize: 12.5),
                       prefixIcon: const Icon(Icons.search_rounded,
-                          color: _textMuted, size: 20),
+                          color: _textMuted, size: 18),
                       isDense: true,
                       filled: true,
                       fillColor: _card,
@@ -327,6 +342,8 @@ class _SalasPageState extends State<SalasPage> {
                         borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: _border),
                       ),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                     ),
                     onSubmitted: (_) async {
                       setState(() => _loading = true);
@@ -335,25 +352,25 @@ class _SalasPageState extends State<SalasPage> {
                     },
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 _FilterChip(
                   label: 'Todo',
                   selected: _filterType == 'all',
                   onTap: () => setState(() => _filterType = 'all'),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 _FilterChip(
                   label: 'Películas',
                   selected: _filterType == 'movie',
                   onTap: () => setState(() => _filterType = 'movie'),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 _FilterChip(
                   label: 'Series',
                   selected: _filterType == 'series',
                   onTap: () => setState(() => _filterType = 'series'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 IconButton(
                   tooltip: 'Actualizar',
                   onPressed: _loading
@@ -365,11 +382,12 @@ class _SalasPageState extends State<SalasPage> {
                         },
                   icon: _loading
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.refresh_rounded, color: _textMuted),
+                      : const Icon(Icons.refresh_rounded,
+                          color: _textMuted, size: 20),
                 ),
               ],
             ),
@@ -382,13 +400,14 @@ class _SalasPageState extends State<SalasPage> {
                 'Mis salas (${_myRooms.length})',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
                 ),
               ),
             ),
             SizedBox(
-              height: 120,
+              height: 112,
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 scrollDirection: Axis.horizontal,
@@ -418,6 +437,8 @@ class _SalasPageState extends State<SalasPage> {
                         context: context,
                         builder: (ctx) => AlertDialog(
                           backgroundColor: _card,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
                           title: const Text('Eliminar sala',
                               style: TextStyle(color: Colors.white)),
                           content: Text(
@@ -453,7 +474,7 @@ class _SalasPageState extends State<SalasPage> {
                 },
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
           ],
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
@@ -461,15 +482,16 @@ class _SalasPageState extends State<SalasPage> {
               'Salas públicas en vivo (${filtered.length})',
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
               ),
             ),
           ),
 
           Expanded(
             child: _loading && _rooms.isEmpty
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(color: _accent))
                 : _error != null && _rooms.isEmpty
                     ? Center(
                         child: Padding(
@@ -478,8 +500,8 @@ class _SalasPageState extends State<SalasPage> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(Icons.cloud_off_rounded,
-                                  size: 48, color: _textMuted),
-                              const SizedBox(height: 12),
+                                  size: 44, color: _textMuted),
+                              const SizedBox(height: 10),
                               Text(_error!,
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(color: _textMuted)),
@@ -492,18 +514,18 @@ class _SalasPageState extends State<SalasPage> {
                             child: Text(
                               'No hay salas públicas con ese filtro.\nCrea una desde el reproductor (botón Party).',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: _textMuted),
+                              style: TextStyle(color: _textMuted, height: 1.4),
                             ),
                           )
                         : GridView.builder(
                             padding:
-                                const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                                const EdgeInsets.fromLTRB(24, 6, 24, 24),
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: cross,
                               mainAxisSpacing: 12,
                               crossAxisSpacing: 12,
-                              childAspectRatio: cross >= 3 ? 1.55 : 1.45,
+                              childAspectRatio: cross >= 3 ? 1.6 : 1.5,
                             ),
                             itemCount: filtered.length,
                             itemBuilder: (context, i) {
@@ -553,19 +575,20 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? _accent.withValues(alpha: 0.25) : _card,
-          borderRadius: BorderRadius.circular(20),
+          color: selected ? _accent.withValues(alpha: 0.2) : _card,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: selected ? _accent : _border),
         ),
         child: Text(
           label,
           style: TextStyle(
             color: selected ? _accent : _textMuted,
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -589,15 +612,15 @@ class _MyRoomChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: _card,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         onTap: onEnter,
         child: Container(
-          width: 220,
-          padding: const EdgeInsets.all(12),
+          width: 210,
+          padding: const EdgeInsets.all(11),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _border),
           ),
           child: Column(
@@ -606,23 +629,25 @@ class _MyRoomChip extends StatelessWidget {
               Row(
                 children: [
                   const Icon(Icons.workspace_premium_rounded,
-                      color: Color(0xFFFFD54F), size: 16),
-                  const SizedBox(width: 6),
+                      color: Color(0xFFFFD54F), size: 15),
+                  const SizedBox(width: 5),
                   Expanded(
                     child: Text(
                       room.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 5),
               Text(
                 'Código ${room.code} · ${room.memberCount} en sala',
-                style: const TextStyle(color: _textMuted, fontSize: 12),
+                style: const TextStyle(color: _textMuted, fontSize: 11.5),
               ),
               const Spacer(),
               Row(
@@ -630,15 +655,15 @@ class _MyRoomChip extends StatelessWidget {
                   const Text('Entrar',
                       style: TextStyle(
                           color: _accent,
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w600)),
                   const Spacer(),
                   InkWell(
                     onTap: onDelete,
                     child: const Padding(
-                      padding: EdgeInsets.all(4),
+                      padding: EdgeInsets.all(3),
                       child: Icon(Icons.delete_outline_rounded,
-                          color: Colors.redAccent, size: 18),
+                          color: Colors.redAccent, size: 16),
                     ),
                   ),
                 ],
@@ -682,123 +707,129 @@ class _RoomCardState extends State<_RoomCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _hover
-                ? _accent.withValues(alpha: 0.5)
-                : _border,
+      child: AnimatedScale(
+        scale: _hover ? 1.015 : 1.0,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: _hover
+                  ? _accent.withValues(alpha: 0.4)
+                  : _border,
+            ),
           ),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: widget.onJoin,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: room.poster != null && room.poster!.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: room.poster!,
-                                width: 48,
-                                height: 68,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => _placeholder(),
-                              )
-                            : _placeholder(),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              room.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13.5,
-                                height: 1.2,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(13),
+              onTap: widget.onJoin,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(11, 11, 11, 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(9),
+                          child: room.poster != null && room.poster!.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: room.poster!,
+                                  width: 44,
+                                  height: 62,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => _placeholder(),
+                                )
+                              : _placeholder(),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                room.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                [
+                                  if (ep != null) ep,
+                                  'Host ${room.hostUsername}',
+                                ].join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: _textMuted, fontSize: 10.5),
+                              ),
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  _badge(
+                                    live ? 'EN VIVO' : 'ESPERA',
+                                    live ? _accent : Colors.white54,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  _badge(
+                                    '${room.memberCount}/${room.maxMembers}',
+                                    Colors.white70,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${room.code} · ${widget.durationLabel} · ${widget.remainingLabel}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 10),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        SizedBox(
+                          height: 30,
+                          child: FilledButton(
+                            onPressed: widget.onJoin,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _accent,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(9),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              [
-                                if (ep != null) ep,
-                                'Host ${room.hostUsername}',
-                              ].join(' · '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: _textMuted, fontSize: 11),
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                _badge(
-                                  live ? 'EN VIVO' : 'ESPERA',
-                                  live ? _accent : Colors.white54,
-                                ),
-                                const SizedBox(width: 6),
-                                _badge(
-                                  '${room.memberCount}/${room.maxMembers}',
-                                  Colors.white70,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${room.code} · ${widget.durationLabel} · ${widget.remainingLabel}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 10.5),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        height: 34,
-                        child: FilledButton(
-                          onPressed: widget.onJoin,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _accent,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: const Text(
-                            'Unirse',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12.5,
+                            child: const Text(
+                              'Unirse',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -809,25 +840,25 @@ class _RoomCardState extends State<_RoomCard> {
 
   Widget _badge(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
         text,
         style: TextStyle(
-            color: color, fontSize: 10, fontWeight: FontWeight.w700),
+            color: color, fontSize: 9.5, fontWeight: FontWeight.w700),
       ),
     );
   }
 
   Widget _placeholder() {
     return Container(
-      width: 48,
-      height: 68,
+      width: 44,
+      height: 62,
       color: Colors.white10,
-      child: const Icon(Icons.movie_rounded, color: _textMuted, size: 22),
+      child: const Icon(Icons.movie_rounded, color: _textMuted, size: 20),
     );
   }
 }

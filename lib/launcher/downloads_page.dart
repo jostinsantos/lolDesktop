@@ -9,9 +9,9 @@ import '../repo/player/player.dart';
 import '../repo/contenido/contenido.dart';
 import '../data/models/repo_manifest.dart';
 
-const _card = Color(0xFF161A22);
+const _card = Color(0xFF141820);
 const _accent = Color(0xFFE50914);
-const _border = Color(0xFF1E2430);
+const _border = Color(0xFF1C222C);
 
 /// Página de descargas: progreso, completadas agrupadas y play en el player.
 class DownloadsPage extends StatefulWidget {

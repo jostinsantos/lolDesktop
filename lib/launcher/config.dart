@@ -9,9 +9,9 @@ import '../data/services/ui_scale_service.dart';
 import '../data/services/version_service.dart';
 import '../ui/shared/update_banner.dart';
 
-const _card = Color(0xFF161A22);
+const _card = Color(0xFF141820);
 const _accent = Color(0xFFE50914);
-const _border = Color(0xFF1E2430);
+const _border = Color(0xFF1C222C);
 
 /// Ajustes desktop: fondo launcher, blur, subtítulos, Windows, descargas, escala UI.
 class LauncherConfigPage extends StatefulWidget {
@@ -22,7 +22,6 @@ class LauncherConfigPage extends StatefulWidget {
 }
 
 class _LauncherConfigPageState extends State<LauncherConfigPage> {
-  // Subtitle prefs
   double _subSize = 42;
   double _subMarginY = 18;
   double _subBorder = 2;
@@ -30,7 +29,6 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
   bool _subBg = false;
   Color _subColor = Colors.white;
 
-  // Windows / UI
   bool _startWithWindows = false;
   bool _closeToTray = true;
   double _uiScale = 1.0;
@@ -77,22 +75,30 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
     final manager = context.watch<RepoManager>();
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(28, 24, 28, 48),
+      padding: const EdgeInsets.fromLTRB(28, 20, 28, 48),
       children: [
-        const Text('Ajustes', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 20),
+        const Text('Ajustes',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3)),
+        const SizedBox(height: 18),
 
         _section('Actualizaciones'),
         _cardBox(
           children: [
             ListTile(
-              title: const Text('Verificar actualizaciones', style: TextStyle(color: Colors.white)),
+              title: const Text('Verificar actualizaciones',
+                  style: TextStyle(color: Colors.white, fontSize: 14.5)),
               subtitle: Text(
                 'v${VersionService.currentVersionName} · parche ${VersionService.currentParche}',
-                style: const TextStyle(color: Colors.white38),
+                style: const TextStyle(color: Colors.white38, fontSize: 12.5),
               ),
-              trailing: const Icon(Icons.system_update_alt, color: Colors.white54),
-              onTap: () => showAppUpdateFlow(context, forceNotifyPatches: true),
+              trailing: const Icon(Icons.system_update_alt,
+                  color: Colors.white54, size: 22),
+              onTap: () =>
+                  showAppUpdateFlow(context, forceNotifyPatches: true),
             ),
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -117,34 +123,48 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
                   _modeChip(settings, 'Desactivado', null, onTap: () async {
                     await settings.setHomeBgMode(HomeBgMode.fixed);
                     await settings.setHomeBgUrl('');
-                  }, selected: settings.homeBgMode == HomeBgMode.fixed && settings.homeBgUrl.isEmpty),
+                  },
+                      selected: settings.homeBgMode == HomeBgMode.fixed &&
+                          settings.homeBgUrl.isEmpty),
                   _modeChip(settings, 'Automático TMDB', HomeBgMode.tmdb),
                   _modeChip(settings, 'Buscar TMDB', HomeBgMode.custom),
                   _modeChip(settings, 'Catálogo LOL', HomeBgMode.lol),
-                  _modeChip(settings, 'Imágenes gratis', HomeBgMode.fixed, selected: settings.homeBgMode == HomeBgMode.fixed && settings.homeBgUrl.isNotEmpty),
+                  _modeChip(settings, 'Imágenes gratis', HomeBgMode.fixed,
+                      selected: settings.homeBgMode == HomeBgMode.fixed &&
+                          settings.homeBgUrl.isNotEmpty),
                 ],
               ),
             ),
             if (settings.homeBgMode == HomeBgMode.custom ||
-                (settings.homeBgMode == HomeBgMode.fixed && settings.homeBgUrl.isNotEmpty) ||
+                (settings.homeBgMode == HomeBgMode.fixed &&
+                    settings.homeBgUrl.isNotEmpty) ||
                 settings.homeBgMode == HomeBgMode.lol)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: TextField(
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: const InputDecoration(
                     labelText: 'URL de imagen (elige una y pégala aquí)',
                     labelStyle: TextStyle(color: Colors.white54),
-                    helperText: 'TMDB / LOL / gratis: pega la URL de la imagen elegida',
-                    helperStyle: TextStyle(color: Colors.white30),
+                    helperText:
+                        'TMDB / LOL / gratis: pega la URL de la imagen elegida. Se aplica al instante en el Home.',
+                    helperStyle: TextStyle(color: Colors.white30, fontSize: 11.5),
                   ),
                   controller: TextEditingController(text: settings.homeBgUrl)
-                    ..selection = TextSelection.collapsed(offset: settings.homeBgUrl.length),
+                    ..selection = TextSelection.collapsed(
+                        offset: settings.homeBgUrl.length),
                   onSubmitted: (v) => settings.setHomeBgUrl(v.trim()),
+                  onChanged: (v) {
+                    // Aplicar en vivo al soltar (debounce simple)
+                    if (v.trim().length > 8) {
+                      settings.setHomeBgUrl(v.trim());
+                    }
+                  },
                 ),
               ),
             ListTile(
-              title: const Text('Intensidad de blur', style: TextStyle(color: Colors.white)),
+              title: const Text('Intensidad de blur',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
               subtitle: Slider(
                 value: settings.homeBgBlur.clamp(0, 32),
                 min: 0,
@@ -156,7 +176,8 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
               ),
             ),
             ListTile(
-              title: const Text('Oscurecer fondo', style: TextStyle(color: Colors.white)),
+              title: const Text('Oscurecer fondo',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
               subtitle: Slider(
                 value: settings.homeBgDim.clamp(0, 1),
                 min: 0,
@@ -167,6 +188,13 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
                 onChanged: (v) => settings.setHomeBgDim(v),
               ),
             ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text(
+                'El fondo se aplica en tiempo real al Home. Usa blur y oscurecido para que el contenido se lea bien.',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ),
           ],
         ),
 
@@ -174,7 +202,8 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
         _cardBox(
           children: [
             SwitchListTile(
-              title: const Text('Negrita', style: TextStyle(color: Colors.white)),
+              title: const Text('Negrita',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
               value: _subBold,
               activeColor: _accent,
               onChanged: (v) {
@@ -183,7 +212,8 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
               },
             ),
             SwitchListTile(
-              title: const Text('Fondo detrás del texto', style: TextStyle(color: Colors.white)),
+              title: const Text('Fondo detrás del texto',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
               value: _subBg,
               activeColor: _accent,
               onChanged: (v) {
@@ -204,19 +234,25 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
               _saveLocal();
             }),
             ListTile(
-              title: const Text('Color del subtítulo', style: TextStyle(color: Colors.white)),
+              title: const Text('Color del subtítulo',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final c in [Colors.white, Colors.yellow, Colors.cyanAccent, Colors.lightGreenAccent])
+                  for (final c in [
+                    Colors.white,
+                    Colors.yellow,
+                    Colors.cyanAccent,
+                    Colors.lightGreenAccent
+                  ])
                     GestureDetector(
                       onTap: () {
                         setState(() => _subColor = c);
                         _saveLocal();
                       },
                       child: Container(
-                        width: 28,
-                        height: 28,
+                        width: 26,
+                        height: 26,
                         margin: const EdgeInsets.only(left: 6),
                         decoration: BoxDecoration(
                           color: c,
@@ -245,8 +281,11 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
         _cardBox(
           children: [
             SwitchListTile(
-              title: const Text('Habilitar descargas', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Muestra botones y gestiona archivos en Windows', style: TextStyle(color: Colors.white38)),
+              title: const Text('Habilitar descargas',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text(
+                  'Muestra botones y gestiona archivos en Windows',
+                  style: TextStyle(color: Colors.white38, fontSize: 12.5)),
               value: settings.downloadsEnabled,
               activeColor: _accent,
               onChanged: (v) => settings.setDownloadsEnabled(v),
@@ -258,12 +297,13 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
         _cardBox(
           children: [
             ListTile(
-              leading: const Icon(Icons.push_pin_outlined, color: Colors.white70),
+              leading: const Icon(Icons.push_pin_outlined,
+                  color: Colors.white70, size: 22),
               title: const Text('Crear acceso directo en el Escritorio',
-                  style: TextStyle(color: Colors.white)),
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
               subtitle: const Text(
                 'LOL Lite.lnk en el escritorio (un clic para abrir)',
-                style: TextStyle(color: Colors.white38),
+                style: TextStyle(color: Colors.white38, fontSize: 12.5),
               ),
               trailing: FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: _accent),
@@ -283,10 +323,13 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
                 child: const Text('Crear'),
               ),
             ),
-            const Divider(color: _border, height: 20),
+            const Divider(color: _border, height: 18),
             SwitchListTile(
-              title: const Text('Iniciar con Windows', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Se registra en el inicio de Windows. Se actualiza solo tras cada update.', style: TextStyle(color: Colors.white38)),
+              title: const Text('Iniciar con Windows',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text(
+                  'Se registra en el inicio de Windows. Se actualiza solo tras cada update.',
+                  style: TextStyle(color: Colors.white38, fontSize: 12.5)),
               value: _startWithWindows,
               activeColor: _accent,
               onChanged: (v) async {
@@ -296,10 +339,11 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
               },
             ),
             SwitchListTile(
-              title: const Text('Cerrar a la bandeja', style: TextStyle(color: Colors.white)),
+              title: const Text('Cerrar a la bandeja',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
               subtitle: const Text(
                 'Al pulsar X se oculta en la flechita de notificaciones (bandeja) y sale de la barra de tareas. Minimizar sigue funcionando normal.',
-                style: TextStyle(color: Colors.white38),
+                style: TextStyle(color: Colors.white38, fontSize: 12.5),
               ),
               value: _closeToTray,
               activeColor: _accent,
@@ -314,6 +358,13 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
               _saveLocal();
               UiScaleService.instance.setScale(v);
             }, divisions: 12),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Text(
+                'La escala se aplica de inmediato a toda la interfaz (sidebar, textos, cards).',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ),
           ],
         ),
 
@@ -321,16 +372,23 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
         _cardBox(
           children: [
             ListTile(
-              title: const Text('Instalados', style: TextStyle(color: Colors.white)),
-              subtitle: Text('${manager.installed.length} repositorio(s)', style: const TextStyle(color: Colors.white38)),
+              title: const Text('Instalados',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: Text('${manager.installed.length} repositorio(s)',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12.5)),
             ),
             ListTile(
-              title: const Text('Limpiar caché de contenido', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Fuerza recarga de home/discover', style: TextStyle(color: Colors.white38)),
-              trailing: const Icon(Icons.cleaning_services_outlined, color: Colors.white54),
+              title: const Text('Limpiar caché de contenido',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              subtitle: const Text('Fuerza recarga de home/discover',
+                  style: TextStyle(color: Colors.white38, fontSize: 12.5)),
+              trailing: const Icon(Icons.cleaning_services_outlined,
+                  color: Colors.white54, size: 20),
               onTap: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Caché: usa pull-to-refresh en Home/Descubrir')),
+                  const SnackBar(
+                      content: Text(
+                          'Caché: usa pull-to-refresh en Home/Descubrir')),
                 );
               },
             ),
@@ -340,14 +398,18 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
     );
   }
 
-  Widget _modeChip(SettingsService settings, String label, HomeBgMode? mode, {VoidCallback? onTap, bool? selected}) {
+  Widget _modeChip(SettingsService settings, String label, HomeBgMode? mode,
+      {VoidCallback? onTap, bool? selected}) {
     final sel = selected ?? (mode != null && settings.homeBgMode == mode);
     return ChoiceChip(
-      label: Text(label),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
       selected: sel,
       selectedColor: _accent,
-      labelStyle: TextStyle(color: sel ? Colors.white : Colors.white70, fontSize: 12.5),
-      backgroundColor: const Color(0xFF1A1F2A),
+      labelStyle: TextStyle(
+          color: sel ? Colors.white : Colors.white70, fontSize: 12),
+      backgroundColor: const Color(0xFF181C24),
+      side: BorderSide(
+          color: sel ? _accent : Colors.white.withValues(alpha: 0.08)),
       onSelected: (_) async {
         if (onTap != null) {
           onTap();
@@ -359,22 +421,29 @@ class _LauncherConfigPageState extends State<LauncherConfigPage> {
   }
 
   Widget _section(String t) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 18, 4, 10),
-        child: Text(t, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700, fontSize: 13)),
+        padding: const EdgeInsets.fromLTRB(2, 16, 2, 8),
+        child: Text(t,
+            style: const TextStyle(
+                color: Colors.white60,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+                letterSpacing: 0.2)),
       );
 
   Widget _cardBox({required List<Widget> children}) => Container(
         decoration: BoxDecoration(
           color: _card,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(13),
           border: Border.all(color: _border),
         ),
         child: Column(children: children),
       );
 
-  Widget _sliderTile(String title, double value, double min, double max, ValueChanged<double> onChanged, {int divisions = 20}) {
+  Widget _sliderTile(
+      String title, double value, double min, double max, ValueChanged<double> onChanged,
+      {int divisions = 20}) {
     return ListTile(
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
       subtitle: Slider(
         value: value.clamp(min, max),
         min: min,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/services/repo_manager.dart';
 import '../../data/services/library_service.dart';
@@ -19,22 +20,65 @@ import 'downloads_page.dart';
 import 'salas_page.dart';
 import '../repo/player/player.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  COLORES (igual que TV)
-// ─────────────────────────────────────────────────────────────────────────────
-const _bg = Color(0xFF0B0D10);
-const _sidebarBg = Color(0xFF0F1218);
-const _card = Color(0xFF161A22);
-const _border = Color(0xFF1E2430);
-const _accent = Color(0xFFE50914);
-const _textMuted = Color(0x99FFFFFF);
+/// Contador local de aperturas de repos (persiste en SharedPreferences).
+/// No depende de métodos nuevos en LibraryService.
+class _RepoUsage {
+  static const _key = 'repo_open_counts_v1';
+  static final Map<String, int> _counts = {};
+  static bool _loaded = false;
 
+  static Future<void> load() async {
+    if (_loaded) return;
+    try {
+      final p = await SharedPreferences.getInstance();
+      final raw = p.getStringList(_key) ?? [];
+      for (final e in raw) {
+        final i = e.lastIndexOf(':');
+        if (i > 0) {
+          final id = e.substring(0, i);
+          final n = int.tryParse(e.substring(i + 1)) ?? 0;
+          _counts[id] = n;
+        }
+      }
+    } catch (_) {}
+    _loaded = true;
+  }
+
+  static Future<void> _save() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final list = _counts.entries.map((e) => '${e.key}:${e.value}').toList();
+      await p.setStringList(_key, list);
+    } catch (_) {}
+  }
+
+  static int count(String repoId) => _counts[repoId] ?? 0;
+
+  static Future<void> record(String repoId) async {
+    await load();
+    _counts[repoId] = (_counts[repoId] ?? 0) + 1;
+    await _save();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DESIGN TOKENS – minimalista, profesional, con profundidad sutil
+// ─────────────────────────────────────────────────────────────────────────────
+const _bg = Color(0xFF0A0C0F);
+const _sidebarBg = Color(0xFF0C0E12);
+const _card = Color(0xFF141820);
+const _cardHover = Color(0xFF1A1F28);
+const _border = Color(0xFF1C222C);
+const _borderSubtle = Color(0xFF181C24);
+const _accent = Color(0xFFE50914);
+const _accentSoft = Color(0x33E50914);
+const _textMuted = Color(0x8AFFFFFF);
+const _textFaint = Color(0x55FFFFFF);
 
 /// Navegación global del launcher (p. ej. overlay → pestaña Descargas).
 class LauncherNav {
   static final ValueNotifier<int?> goToTab = ValueNotifier<int?>(null);
 }
-
 
 class LauncherHome extends StatefulWidget {
   const LauncherHome({super.key});
@@ -60,6 +104,7 @@ class _LauncherHomeState extends State<LauncherHome> {
   void initState() {
     super.initState();
     LauncherNav.goToTab.addListener(_onNavRequest);
+    _RepoUsage.load();
   }
 
   @override
@@ -71,7 +116,6 @@ class _LauncherHomeState extends State<LauncherHome> {
   void _onNavRequest() {
     final i = LauncherNav.goToTab.value;
     if (i == null || !mounted) return;
-    // Aplicar en el siguiente frame por si venimos de popUntil del overlay
     final target = i.clamp(0, _nav.length - 1);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -90,15 +134,67 @@ class _LauncherHomeState extends State<LauncherHome> {
   }
 
   void _openRepo(InstalledRepo repo) {
+    // Registrar uso para ordenar por más usados (local, sin tocar LibraryService)
+    _RepoUsage.record(repo.manifest.id);
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => RepoMainHome(repo: repo)),
     );
   }
 
+  Future<void> _deleteRepo(InstalledRepo repo) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Eliminar repositorio',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          '¿Seguro que quieres desinstalar «${repo.manifest.name}»?\nSe eliminarán sus datos de biblioteca asociados.',
+          style: const TextStyle(color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white60)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      await context.read<RepoManager>().uninstall(repo.manifest.id);
+      try {
+        await context.read<LibraryService>().clearRepoData(repo.manifest.id);
+      } catch (_) {}
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${repo.manifest.name} eliminado'),
+            backgroundColor: _accent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final installed = context.watch<RepoManager>().installed;
-
     final settings = context.watch<SettingsService>();
 
     return Scaffold(
@@ -106,73 +202,78 @@ class _LauncherHomeState extends State<LauncherHome> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Fondo global del launcher (imagen + blur + oscurecido)
           _LauncherBackground(settings: settings),
           Row(
-        children: [
-          // ── SIDEBAR FIJA ────────────────────────────────────────────────
-          _Sidebar(
-            items: _nav,
-            selected: _navIndex,
-            onSelect: (i) => setState(() => _navIndex = i),
-          ),
-
-          // ── CONTENIDO ───────────────────────────────────────────────────
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header superior
-                Container(
-                  height: 64,
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    border: const Border(bottom: BorderSide(color: _border)),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        _nav[_navIndex].$2,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+            children: [
+              _Sidebar(
+                items: _nav,
+                selected: _navIndex,
+                onSelect: (i) => setState(() => _navIndex = i),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header superior con glass
+                    ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          height: 60,
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            border: const Border(
+                              bottom: BorderSide(color: _borderSubtle),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                _nav[_navIndex].$2,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const Spacer(),
+                              if (_navIndex == 0)
+                                IconButton(
+                                  tooltip: 'Actualizar repositorios',
+                                  onPressed: _loadingRepos ? null : _refreshRepos,
+                                  icon: _loadingRepos
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: _accent,
+                                          ),
+                                        )
+                                      : const Icon(Icons.refresh_rounded,
+                                          color: Colors.white60, size: 22),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      if (_navIndex == 0)
-                        IconButton(
-                          tooltip: 'Actualizar repositorios',
-                          onPressed: _loadingRepos ? null : _refreshRepos,
-                          icon: _loadingRepos
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: _accent,
-                                  ),
-                                )
-                              : const Icon(Icons.refresh_rounded, color: Colors.white70),
-                        ),
-                    ],
-                  ),
+                    ),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 280),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: _body(installed),
+                      ),
+                    ),
+                  ],
                 ),
-
-                // Cuerpo
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    child: _body(installed),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
-      ),
-        ], // Stack
       ),
     );
   }
@@ -185,6 +286,7 @@ class _LauncherHomeState extends State<LauncherHome> {
           loading: _loadingRepos,
           installed: installed,
           onOpen: _openRepo,
+          onDelete: _deleteRepo,
           onGoCommunity: () => setState(() => _navIndex = 1),
         );
       case 1:
@@ -204,7 +306,7 @@ class _LauncherHomeState extends State<LauncherHome> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  SIDEBAR
+//  SIDEBAR – limpia, con indicador activo sutil
 // ─────────────────────────────────────────────────────────────────────────────
 class _Sidebar extends StatelessWidget {
   final List<(IconData, String)> items;
@@ -219,125 +321,130 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 240,
-      decoration: BoxDecoration(
-        color: _sidebarBg.withValues(alpha: 0.82),
-        border: const Border(right: BorderSide(color: _border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 28),
-
-          // Logo
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.asset(
-                    'assets/app_icon.ico',
-                    width: 38,
-                    height: 38,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Image.asset(
-                      'assets/tray_icon.ico',
-                      width: 38,
-                      height: 38,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: _accent,
-                          borderRadius: BorderRadius.circular(10),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          width: 228,
+          decoration: BoxDecoration(
+            color: _sidebarBg.withValues(alpha: 0.78),
+            border: const Border(right: BorderSide(color: _borderSubtle)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 26),
+              // Logo
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        'assets/app_icon.ico',
+                        width: 34,
+                        height: 34,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Image.asset(
+                          'assets/tray_icon.ico',
+                          width: 34,
+                          height: 34,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: _accent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.play_arrow_rounded,
+                                color: Colors.white, size: 20),
+                          ),
                         ),
-                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+                      ),
+                    ),
+                    const SizedBox(width: 11),
+                    const Text(
+                      'LOL Lite',
+                      style: TextStyle(
+                        fontSize: 17.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 36),
+              // Items
+              ...List.generate(items.length, (i) {
+                final active = i == selected;
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  child: Material(
+                    color: active ? _accentSoft : Colors.transparent,
+                    borderRadius: BorderRadius.circular(11),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(11),
+                      onTap: () => onSelect(i),
+                      hoverColor: Colors.white.withValues(alpha: 0.04),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 13, vertical: 12),
+                        child: Row(
+                          children: [
+                            Icon(
+                              items[i].$1,
+                              size: 21,
+                              color: active ? _accent : Colors.white54,
+                            ),
+                            const SizedBox(width: 13),
+                            Text(
+                              items[i].$2,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight:
+                                    active ? FontWeight.w600 : FontWeight.w500,
+                                color: active ? Colors.white : Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'LOL Lite',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -0.3,
-                    decoration: TextDecoration.none,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 40),
-
-          // Items
-          ...List.generate(items.length, (i) {
-            final active = i == selected;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-              child: Material(
-                color: active ? _accent.withValues(alpha: 0.14) : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () => onSelect(i),
-                  hoverColor: Colors.white.withValues(alpha: 0.04),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                    child: Row(
-                      children: [
-                        Icon(
-                          items[i].$1,
-                          size: 22,
-                          color: active ? _accent : Colors.white60,
-                        ),
-                        const SizedBox(width: 14),
-                        Text(
-                          items[i].$2,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                            color: active ? Colors.white : Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                );
+              }),
+              const Spacer(),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 18),
+                child: Text(
+                  'Desktop • Windows',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 10.5, color: Colors.white24),
                 ),
               ),
-            );
-          }),
-
-          const Spacer(),
-
-          // Footer
-          const Padding(
-            padding: EdgeInsets.only(bottom: 20),
-            child: Text(
-              'Desktop • Windows',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: Colors.white24),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  HOME – REPOS INSTALADOS
+//  HOME – REPOS INSTALADOS (ordenados por uso)
 // ─────────────────────────────────────────────────────────────────────────────
 class _HomeRepos extends StatefulWidget {
   final bool loading;
   final List<InstalledRepo> installed;
   final ValueChanged<InstalledRepo> onOpen;
+  final ValueChanged<InstalledRepo> onDelete;
   final VoidCallback onGoCommunity;
 
   const _HomeRepos({
@@ -345,6 +452,7 @@ class _HomeRepos extends StatefulWidget {
     required this.loading,
     required this.installed,
     required this.onOpen,
+    required this.onDelete,
     required this.onGoCommunity,
   });
 
@@ -359,7 +467,7 @@ class _HomeReposState extends State<_HomeRepos> {
   @override
   void initState() {
     super.initState();
-    
+    _RepoUsage.load();
     _loadNews();
   }
 
@@ -392,12 +500,24 @@ class _HomeReposState extends State<_HomeRepos> {
     });
   }
 
+  /// Ordena repos: más usados primero (contador local en SharedPreferences).
+  List<InstalledRepo> _sortedRepos() {
+    final list = List<InstalledRepo>.from(widget.installed);
+    list.sort((a, b) {
+      final usageA = _RepoUsage.count(a.manifest.id);
+      final usageB = _RepoUsage.count(b.manifest.id);
+      if (usageA != usageB) return usageB.compareTo(usageA); // más usados primero
+      return a.manifest.name
+          .toLowerCase()
+          .compareTo(b.manifest.name.toLowerCase());
+    });
+    return list;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.loading && widget.installed.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: _accent),
-      );
+      return const Center(child: CircularProgressIndicator(color: _accent));
     }
 
     if (widget.installed.isEmpty) {
@@ -407,7 +527,7 @@ class _HomeReposState extends State<_HomeRepos> {
     final lib = context.watch<LibraryService>();
     final mgr = context.watch<RepoManager>();
     final continueWatching = lib.continueWatchingAll().take(12).toList();
-    final installed = widget.installed;
+    final installed = _sortedRepos();
 
     return CustomScrollView(
       slivers: [
@@ -415,23 +535,24 @@ class _HomeReposState extends State<_HomeRepos> {
         if (continueWatching.isNotEmpty) ...[
           const SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(32, 28, 32, 12),
+              padding: EdgeInsets.fromLTRB(28, 24, 28, 10),
               child: Text(
                 'Continuar viendo',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 17,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
+                  letterSpacing: -0.2,
                 ),
               ),
             ),
           ),
           SliverToBoxAdapter(
             child: HScroller(
-              height: 180,
+              height: 172,
               itemCount: continueWatching.length,
-              itemExtent: 280,
-              spacing: 14,
+              itemExtent: 268,
+              spacing: 12,
               itemBuilder: (context, i) {
                 final entry = continueWatching[i];
                 return _ContinueCard(
@@ -459,33 +580,44 @@ class _HomeReposState extends State<_HomeRepos> {
               },
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
         ],
 
         // ── Título repos ──────────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(32, 24, 32, 16),
+            padding: const EdgeInsets.fromLTRB(28, 20, 28, 14),
             child: Row(
               children: [
                 const Text(
                   'Mis repositorios',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
+                    letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: Colors.white.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     '${installed.length}',
-                    style: const TextStyle(fontSize: 12, color: Colors.white60),
+                    style:
+                        const TextStyle(fontSize: 11.5, color: Colors.white54),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Más usados primero',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Colors.white.withValues(alpha: 0.35),
                   ),
                 ),
               ],
@@ -495,12 +627,12 @@ class _HomeReposState extends State<_HomeRepos> {
 
         // ── Grid de repos ─────────────────────────────────────────────────
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(32, 0, 32, 48),
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 280,
-              mainAxisSpacing: 18,
-              crossAxisSpacing: 18,
+              maxCrossAxisExtent: 260,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
               childAspectRatio: 0.78,
             ),
             delegate: SliverChildBuilderDelegate(
@@ -511,6 +643,7 @@ class _HomeReposState extends State<_HomeRepos> {
                   repo: repo,
                   hasUpdate: hasUpdate,
                   onTap: () => widget.onOpen(repo),
+                  onDelete: () => widget.onDelete(repo),
                 );
               },
               childCount: installed.length,
@@ -518,21 +651,32 @@ class _HomeReposState extends State<_HomeRepos> {
           ),
         ),
 
-        // ── Novedades (un slider por repo, como TV) ───────────────────────
+        // ── Novedades ─────────────────────────────────────────────────────
         if (_loadingNews && _newsByRepo.isEmpty)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: _accent))),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: _accent),
+                ),
+              ),
             ),
           )
         else if (_newsByRepo.isNotEmpty) ...[
           const SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(32, 20, 32, 8),
+              padding: EdgeInsets.fromLTRB(28, 12, 28, 6),
               child: Text(
                 'Novedades',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.2),
               ),
             ),
           ),
@@ -540,25 +684,34 @@ class _HomeReposState extends State<_HomeRepos> {
             if (_newsByRepo.containsKey(repo.manifest.id)) ...[
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 12, 32, 8),
+                  padding: const EdgeInsets.fromLTRB(28, 10, 28, 6),
                   child: Text(
                     repo.manifest.name,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white70),
+                    style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white60),
                   ),
                 ),
               ),
               SliverToBoxAdapter(
                 child: HScroller(
-                  height: 200,
+                  height: 190,
                   itemCount: _newsByRepo[repo.manifest.id]!.length,
-                  itemExtent: 120,
+                  itemExtent: 112,
                   itemBuilder: (context, i) {
                     final n = _newsByRepo[repo.manifest.id]![i];
-                    final title = (n['title'] ?? n['name'] ?? '').toString();
-                    final poster = (n['poster'] ?? n['image'] ?? n['backdrop'] ?? '').toString();
-                    final id = (n['id'] ?? n['contentId'] ?? '').toString();
+                    final title =
+                        (n['title'] ?? n['name'] ?? '').toString();
+                    final poster = (n['poster'] ??
+                            n['image'] ??
+                            n['backdrop'] ??
+                            '')
+                        .toString();
+                    final id =
+                        (n['id'] ?? n['contentId'] ?? '').toString();
                     return SizedBox(
-                      width: 120,
+                      width: 112,
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -566,7 +719,8 @@ class _HomeReposState extends State<_HomeRepos> {
                           onTap: () {
                             if (id.isEmpty) return;
                             Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => DetailsPage(repo: repo, itemId: id),
+                              builder: (_) =>
+                                  DetailsPage(repo: repo, itemId: id),
                             ));
                           },
                           child: Column(
@@ -579,17 +733,25 @@ class _HomeReposState extends State<_HomeRepos> {
                                       ? CachedNetworkImage(
                                           imageUrl: poster,
                                           fit: BoxFit.cover,
-                                          errorWidget: (_, __, ___) => Container(color: const Color(0xFF12151C)),
+                                          errorWidget: (_, __, ___) =>
+                                              Container(
+                                                  color: const Color(
+                                                      0xFF10131A)),
                                         )
-                                      : Container(color: const Color(0xFF12151C)),
+                                      : Container(
+                                          color: const Color(0xFF10131A)),
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 5),
                               Text(
                                 title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.25),
                               ),
                             ],
                           ),
@@ -601,9 +763,8 @@ class _HomeReposState extends State<_HomeRepos> {
               ),
             ],
           ],
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
         ],
-
       ],
     );
   }
@@ -623,34 +784,40 @@ class _EmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 88,
-            height: 88,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.04),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.inbox_rounded, size: 42, color: Colors.white24),
+            child: const Icon(Icons.inbox_rounded,
+                size: 36, color: Colors.white24),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
           const Text(
             'No tienes repositorios instalados',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
             'Ve a Comunidad para descubrir e instalar repos',
-            style: TextStyle(fontSize: 14, color: _textMuted),
+            style: TextStyle(fontSize: 13.5, color: _textMuted),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: onGoCommunity,
-            icon: const Icon(Icons.explore_rounded, size: 20),
+            icon: const Icon(Icons.explore_rounded, size: 18),
             label: const Text('Ir a Comunidad'),
             style: FilledButton.styleFrom(
               backgroundColor: _accent,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ],
@@ -660,17 +827,19 @@ class _EmptyState extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  REPO CARD
+//  REPO CARD – glass + hover + menú eliminar
 // ─────────────────────────────────────────────────────────────────────────────
 class _RepoCard extends StatefulWidget {
   final InstalledRepo repo;
   final bool hasUpdate;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   const _RepoCard({
     required this.repo,
     required this.hasUpdate,
     required this.onTap,
+    required this.onDelete,
   });
 
   @override
@@ -688,156 +857,186 @@ class _RepoCardState extends State<_RepoCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        decoration: BoxDecoration(
-          color: _card,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _hover ? _accent.withValues(alpha: 0.55) : _border,
-            width: 1.2,
-          ),
-          boxShadow: _hover
-              ? [
-                  BoxShadow(
-                    color: _accent.withValues(alpha: 0.12),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
-                  )
-                ]
-              : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
+      child: AnimatedScale(
+        scale: _hover ? 1.02 : 1.0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          decoration: BoxDecoration(
+            color: _hover ? _cardHover : _card,
             borderRadius: BorderRadius.circular(14),
-            onTap: widget.onTap,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Logo / imagen
-                Expanded(
-                  flex: 5,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (logo != null && logo.isNotEmpty)
-                          CachedNetworkImage(
-                            imageUrl: logo,
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(color: const Color(0xFF12151C)),
-                            errorWidget: (_, __, ___) => _placeholder(),
-                          )
-                        else
-                          _placeholder(),
-
-                        // Gradiente inferior
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          height: 60,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.7),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Badge update
-                        if (widget.hasUpdate)
+            border: Border.all(
+              color: _hover
+                  ? _accent.withValues(alpha: 0.45)
+                  : _border,
+              width: 1,
+            ),
+            boxShadow: _hover
+                ? [
+                    BoxShadow(
+                      color: _accent.withValues(alpha: 0.10),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    )
+                  ]
+                : null,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: widget.onTap,
+              onLongPress: widget.onDelete,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(13)),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (logo != null && logo.isNotEmpty)
+                            CachedNetworkImage(
+                              imageUrl: logo,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) =>
+                                  Container(color: const Color(0xFF10131A)),
+                              errorWidget: (_, __, ___) => _placeholder(),
+                            )
+                          else
+                            _placeholder(),
                           Positioned(
-                            top: 10,
-                            right: 10,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: 56,
+                            child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: _accent,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'UPDATE',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: 0.65),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-
-                        // Disabled
-                        if (!widget.repo.enabled)
-                          Positioned.fill(
-                            child: ColoredBox(
-                              color: Colors.black.withValues(alpha: 0.55),
-                              child: const Center(
-                                child: Icon(Icons.block_rounded, color: Colors.white54, size: 32),
+                          if (widget.hasUpdate)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _accent,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'UPDATE',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                          // Botón eliminar (aparece en hover)
+                          if (_hover)
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: Material(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(8),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: widget.onDelete,
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: Icon(Icons.delete_outline_rounded,
+                                        size: 16, color: Colors.white70),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (!widget.repo.enabled)
+                            Positioned.fill(
+                              child: ColoredBox(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                child: const Center(
+                                  child: Icon(Icons.block_rounded,
+                                      color: Colors.white54, size: 28),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-
-                // Info
-                Expanded(
-                  flex: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          m.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          m.description.isNotEmpty
-                              ? m.description
-                              : (m.author.isNotEmpty ? m.author : 'Sin descripción'),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12.5, color: _textMuted, height: 1.3),
-                        ),
-                        const Spacer(),
-                        Row(
-                          children: [
-                            Text(
-                              'v${m.version}',
-                              style: const TextStyle(fontSize: 11, color: Colors.white38),
+                  Expanded(
+                    flex: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            m.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
-                            if (!widget.repo.enabled) ...[
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Desactivado',
-                                style: TextStyle(fontSize: 11, color: Colors.orangeAccent),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            m.description.isNotEmpty
+                                ? m.description
+                                : (m.author.isNotEmpty
+                                    ? m.author
+                                    : 'Sin descripción'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                color: _textMuted,
+                                height: 1.3),
+                          ),
+                          const Spacer(),
+                          Row(
+                            children: [
+                              Text(
+                                'v${m.version}',
+                                style: const TextStyle(
+                                    fontSize: 10.5, color: Colors.white38),
                               ),
+                              if (!widget.repo.enabled) ...[
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Desactivado',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: Colors.orangeAccent),
+                                ),
+                              ],
                             ],
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -847,9 +1046,9 @@ class _RepoCardState extends State<_RepoCard> {
 
   Widget _placeholder() {
     return Container(
-      color: const Color(0xFF12151C),
+      color: const Color(0xFF10131A),
       child: const Center(
-        child: Icon(Icons.apps_rounded, size: 42, color: Colors.white12),
+        child: Icon(Icons.apps_rounded, size: 36, color: Colors.white12),
       ),
     );
   }
@@ -859,7 +1058,7 @@ class _RepoCardState extends State<_RepoCard> {
 //  CONTINUE WATCHING CARD
 // ─────────────────────────────────────────────────────────────────────────────
 class _ContinueCard extends StatelessWidget {
-  final dynamic entry; // WatchEntry
+  final dynamic entry;
   final VoidCallback onTap;
 
   const _ContinueCard({required this.entry, required this.onTap});
@@ -870,7 +1069,7 @@ class _ContinueCard extends StatelessWidget {
     final poster = entry.poster as String?;
 
     return SizedBox(
-      width: 280,
+      width: 268,
       child: Material(
         color: _card,
         borderRadius: BorderRadius.circular(12),
@@ -882,7 +1081,8 @@ class _ContinueCard extends StatelessWidget {
             children: [
               Expanded(
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(12)),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -890,11 +1090,11 @@ class _ContinueCard extends StatelessWidget {
                         CachedNetworkImage(
                           imageUrl: poster,
                           fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(color: const Color(0xFF12151C)),
+                          errorWidget: (_, __, ___) =>
+                              Container(color: const Color(0xFF10131A)),
                         )
                       else
-                        Container(color: const Color(0xFF12151C)),
-                      // Progress bar
+                        Container(color: const Color(0xFF10131A)),
                       Positioned(
                         left: 0,
                         right: 0,
@@ -903,7 +1103,8 @@ class _ContinueCard extends StatelessWidget {
                           value: progress.clamp(0.0, 1.0),
                           minHeight: 3,
                           backgroundColor: Colors.white12,
-                          valueColor: const AlwaysStoppedAnimation(_accent),
+                          valueColor:
+                              const AlwaysStoppedAnimation(_accent),
                         ),
                       ),
                     ],
@@ -911,13 +1112,13 @@ class _ContinueCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
                 child: Text(
                   entry.title ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13.5,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -930,7 +1131,6 @@ class _ContinueCard extends StatelessWidget {
     );
   }
 }
-
 
 /// Fondo del launcher: imagen + blur + capa de oscurecido.
 class _LauncherBackground extends StatelessWidget {
@@ -950,7 +1150,7 @@ class _LauncherBackground extends StatelessWidget {
             mode == HomeBgMode.fixed ||
             mode == HomeBgMode.lol ||
             mode == HomeBgMode.tmdb);
-    // Desactivado = fixed + URL vacía
+
     if (mode == HomeBgMode.fixed && url.isEmpty) {
       bg = const ColoredBox(color: _bg);
     } else if (hasImage) {
@@ -975,8 +1175,7 @@ class _LauncherBackground extends StatelessWidget {
           )
         else
           bg,
-        // Oscurecido encima del fondo
-        ColoredBox(color: Colors.black.withValues(alpha: 0.35 + dim * 0.5)),
+        ColoredBox(color: Colors.black.withValues(alpha: 0.32 + dim * 0.5)),
       ],
     );
   }

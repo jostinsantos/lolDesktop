@@ -8,8 +8,10 @@ import '../data/models/repo_manifest.dart';
 import '../repo/contenido/contenido.dart';
 import '../widgets/h_scroller.dart';
 
-const _card = Color(0xFF161A22);
+const _card = Color(0xFF141820);
 const _accent = Color(0xFFE50914);
+const _border = Color(0xFF1C222C);
+const _textMuted = Color(0x8AFFFFFF);
 
 /// Buscador launcher: un slider horizontal por cada repo instalado.
 class LauncherSearchPage extends StatefulWidget {
@@ -45,7 +47,6 @@ class _LauncherSearchPageState extends State<LauncherSearchPage> {
     }
     setState(() => _searching = true);
     final repos = context.read<RepoManager>().installed;
-    // Buscar en paralelo por repo
     await Future.wait(repos.map((repo) async {
       setState(() => _loadingByRepo[repo.manifest.id] = true);
       try {
@@ -74,22 +75,32 @@ class _LauncherSearchPageState extends State<LauncherSearchPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(28, 24, 28, 12),
+          padding: const EdgeInsets.fromLTRB(28, 18, 28, 10),
           child: TextField(
             controller: _ctrl,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Colors.white, fontSize: 15),
             decoration: InputDecoration(
               hintText: 'Buscar en todos los repositorios…',
-              prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
+              hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+              prefixIcon: const Icon(Icons.search_rounded,
+                  color: Colors.white54, size: 22),
               suffixIcon: _query.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white54),
+                      icon: const Icon(Icons.close, color: Colors.white54, size: 20),
                       onPressed: () {
                         _ctrl.clear();
                         _search('');
                       },
                     )
                   : null,
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.05),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             ),
             onSubmitted: _search,
             onChanged: (v) {
@@ -102,17 +113,20 @@ class _LauncherSearchPageState extends State<LauncherSearchPage> {
           ),
         ),
         if (_searching && _resultsByRepo.isEmpty)
-          const Expanded(child: Center(child: CircularProgressIndicator(color: _accent)))
+          const Expanded(
+              child: Center(
+                  child: CircularProgressIndicator(color: _accent)))
         else if (_query.length < 2)
           const Expanded(
             child: Center(
-              child: Text('Escribe al menos 2 caracteres', style: TextStyle(color: Colors.white38)),
+              child: Text('Escribe al menos 2 caracteres',
+                  style: TextStyle(color: Colors.white38, fontSize: 14)),
             ),
           )
         else
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(bottom: 32),
+              padding: const EdgeInsets.only(bottom: 28),
               children: [
                 for (final repo in repos) ...[
                   _RepoResultSlider(
@@ -148,49 +162,56 @@ class _RepoResultSlider extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(28, 18, 28, 10),
+          padding: const EdgeInsets.fromLTRB(28, 16, 28, 8),
           child: Row(
             children: [
               Text(
                 repo.manifest.name,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    letterSpacing: -0.2),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               if (loading)
                 const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: _accent),
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: _accent),
                 )
               else
                 Text(
                   '${items.length}',
-                  style: const TextStyle(color: Colors.white38, fontSize: 13),
+                  style: const TextStyle(color: Colors.white38, fontSize: 12.5),
                 ),
             ],
           ),
         ),
         loading && items.isEmpty
             ? const SizedBox(
-                height: 220,
-                child: Center(child: CircularProgressIndicator(color: _accent)),
+                height: 200,
+                child: Center(
+                    child: CircularProgressIndicator(color: _accent)),
               )
             : HScroller(
-                height: 220,
+                height: 200,
                 itemCount: items.length,
-                itemExtent: 130,
+                itemExtent: 120,
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 itemBuilder: (context, i) {
                   final item = items[i];
                   return SizedBox(
-                    width: 130,
+                    width: 120,
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(10),
                         onTap: () {
                           Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => DetailsPage(repo: repo, itemId: item.id),
+                            builder: (_) =>
+                                DetailsPage(repo: repo, itemId: item.id),
                           ));
                         },
                         child: Column(
@@ -199,25 +220,30 @@ class _RepoResultSlider extends StatelessWidget {
                             Expanded(
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: item.poster != null && item.poster!.isNotEmpty
+                                child: item.poster != null &&
+                                        item.poster!.isNotEmpty
                                     ? CachedNetworkImage(
                                         imageUrl: item.poster!,
                                         fit: BoxFit.cover,
                                         errorWidget: (_, __, ___) =>
-                                            Container(color: const Color(0xFF12151C)),
+                                            Container(
+                                                color:
+                                                    const Color(0xFF10131A)),
                                       )
-                                    : Container(color: const Color(0xFF12151C)),
+                                    : Container(
+                                        color: const Color(0xFF10131A)),
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 5),
                             Text(
                               item.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 12.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
+                                height: 1.25,
                               ),
                             ),
                           ],
